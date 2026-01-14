@@ -30,7 +30,16 @@ body {
     margin: 0 auto;
     padding: 0 20px;
 }
-
+/* Logo Image Style */
+.logo-img {
+    height: 45px;
+    width: 45px;
+    border-radius: 50%; /* Circle shape ke liye */
+    object-fit: cover;
+    margin-right: 12px;
+    border: 2px solid #d4af37; /* Golden border */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
 /* Splash Screen */
 .splash-screen {
     position: fixed;
