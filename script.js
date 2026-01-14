@@ -1018,3 +1018,232 @@ notificationStyle.textContent = `
     }
 `;
 document.head.appendChild(notificationStyle);
+// ================ CHECKOUT SYSTEM ================
+let selectedAddress = null;
+let selectedPaymentMethod = 'cod';
+let userAddresses = JSON.parse(localStorage.getItem('userAddresses')) || [];
+
+// Open Checkout Modal
+function openCheckout() {
+    if(!currentUser) {
+        showAuthModal();
+        return;
+    }
+    
+    if(cart.length === 0) {
+        showNotification('Your cart is empty!', 'warning');
+        return;
+    }
+    
+    document.getElementById('checkoutModal').style.display = 'flex';
+    updateOrderSummary();
+    loadSavedAddresses();
+    showStep(1);
+}
+
+// Close Checkout Modal
+function closeCheckout() {
+    document.getElementById('checkoutModal').style.display = 'none';
+    document.getElementById('cartSidebar').classList.remove('active');
+}
+
+// Step Navigation
+function showStep(stepNumber) {
+    // Hide all steps
+    document.querySelectorAll('.checkout-step').forEach(step => {
+        step.classList.remove('active');
+    });
+    
+    // Remove active from all step indicators
+    document.querySelectorAll('.step').forEach(step => {
+        step.classList.remove('active');
+    });
+    
+    // Show selected step
+    document.getElementById(`step${stepNumber}`).classList.add('active');
+    
+    // Activate step indicator
+    document.querySelector(`.step[data-step="${stepNumber}"]`).classList.add('active');
+}
+
+function goToStep(stepNumber) {
+    // Validate current step before proceeding
+    if(stepNumber === 2) {
+        if(!selectedAddress) {
+            showNotification('Please select a delivery address', 'warning');
+            return;
+        }
+    }
+    
+    showStep(stepNumber);
+}
+
+// Address Management
+function loadSavedAddresses() {
+    const addressList = document.getElementById('addressList');
+    
+    if(userAddresses.length === 0) {
+        addressList.innerHTML = `
+            <div class="no-address">
+                <p>No saved addresses</p>
+            </div>
+        `;
+        return;
+    }
+    
+    addressList.innerHTML = userAddresses.map((address, index) => `
+        <div class="address-card ${selectedAddress === index ? 'selected' : ''}" 
+             onclick="selectAddress(${index})">
+            <h4>${address.fullName} | ${address.mobile}</h4>
+            <p>${address.flatNo}, ${address.area}</p>
+            <p>${address.city}, ${address.state} - ${address.pincode}</p>
+        </div>
+    `).join('');
+}
+
+function selectAddress(index) {
+    selectedAddress = index;
+    loadSavedAddresses();
+}
+
+function showAddressForm() {
+    document.getElementById('addressForm').style.display = 'block';
+}
+
+function hideAddressForm() {
+    document.getElementById('addressForm').style.display = 'none';
+}
+
+function saveAddress() {
+    const address = {
+        fullName: document.getElementById('fullName').value,
+        mobile: document.getElementById('mobile').value,
+        flatNo: document.getElementById('flatNo').value,
+        area: document.getElementById('area').value,
+        city: document.getElementById('city').value,
+        state: document.getElementById('state').value,
+        pincode: document.getElementById('pincode').value
+    };
+    
+    // Validate
+    if(!address.fullName || !address.mobile || !address.flatNo || !address.pincode) {
+        showNotification('Please fill all required fields', 'warning');
+        return;
+    }
+    
+    userAddresses.push(address);
+    localStorage.setItem('userAddresses', JSON.stringify(userAddresses));
+    
+    selectedAddress = userAddresses.length - 1;
+    loadSavedAddresses();
+    hideAddressForm();
+    
+    // Clear form
+    document.getElementById('addressForm').querySelectorAll('input').forEach(input => {
+        input.value = '';
+    });
+    
+    showNotification('Address saved successfully!', 'success');
+}
+
+// Payment Methods
+document.querySelectorAll('.payment-option').forEach(option => {
+    option.addEventListener('click', function() {
+        // Remove active from all
+        document.querySelectorAll('.payment-option').forEach(opt => {
+            opt.classList.remove('active');
+        });
+        
+        // Add active to clicked
+        this.classList.add('active');
+        
+        // Get payment method
+        selectedPaymentMethod = this.getAttribute('data-method');
+        
+        // Show relevant form
+        document.getElementById('cardForm').style.display = 'none';
+        document.getElementById('upiForm').style.display = 'none';
+        
+        if(selectedPaymentMethod === 'card') {
+            document.getElementById('cardForm').style.display = 'block';
+        } else if(selectedPaymentMethod === 'upi') {
+            document.getElementById('upiForm').style.display = 'block';
+        }
+    });
+});
+
+// Order Summary
+function updateOrderSummary() {
+    const subtotal = getCartTotal();
+    document.getElementById('orderSubtotal').textContent = `₹${subtotal.toLocaleString()}`;
+    document.getElementById('orderTotal').textContent = `₹${subtotal.toLocaleString()}`;
+}
+
+// Process Payment
+function processPayment() {
+    if(!selectedAddress || selectedAddress === null) {
+        showNotification('Please select a delivery address', 'warning');
+        return;
+    }
+    
+    // Simulate payment processing
+    showNotification('Processing payment...', 'info');
+    
+    setTimeout(() => {
+        // Show confirmation
+        showStep(3);
+        
+        // Update confirmation details
+        const address = userAddresses[selectedAddress];
+        document.getElementById('deliveryAddress').textContent = 
+            `${address.flatNo}, ${address.area}, ${address.city} - ${address.pincode}`;
+        
+        document.getElementById('paymentMethod').textContent = 
+            selectedPaymentMethod.toUpperCase();
+        
+        // Calculate delivery date (3 days from now)
+        const deliveryDate = new Date();
+        deliveryDate.setDate(deliveryDate.getDate() + 3);
+        document.getElementById('deliveryDate').textContent = 
+            deliveryDate.toLocaleDateString('en-IN');
+        
+        // Show order items
+        const orderItems = document.getElementById('finalOrderItems');
+        orderItems.innerHTML = cart.map(item => `
+            <div class="order-item">
+                <span>${item.name} x ${item.quantity}</span>
+                <span>₹${(item.price * item.quantity).toLocaleString()}</span>
+            </div>
+        `).join('');
+        
+        // Save order to localStorage
+        const order = {
+            id: `SAANJH-${Date.now()}`,
+            date: new Date().toISOString(),
+            items: [...cart],
+            address: address,
+            paymentMethod: selectedPaymentMethod,
+            total: getCartTotal(),
+            status: 'confirmed'
+        };
+        
+        let orders = JSON.parse(localStorage.getItem('userOrders')) || [];
+        orders.push(order);
+        localStorage.setItem('userOrders', JSON.stringify(orders));
+        
+        // Clear cart
+        cart = [];
+        updateCartCount();
+        updateCartDisplay();
+        
+        showNotification('Payment successful! Order confirmed.', 'success');
+    }, 2000);
+}
+
+// Track Order
+function trackOrder() {
+    showNotification('Tracking page will open soon!', 'info');
+}
+
+// Update existing Checkout Button in cart
+document.querySelector('.btn-checkout').addEventListener('click', openCheckout);
